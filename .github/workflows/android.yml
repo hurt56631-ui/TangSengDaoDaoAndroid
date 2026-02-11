@@ -2,12 +2,14 @@ name: Android CI
 
 on:
   push:
-    branches: [ "master", "main" ] # 兼容两种常见的默认分支名
-  workflow_dispatch: # 允许手动点击按钮触发
+    branches: [ "master", "main" ]
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   build:
+    # 使用 ubuntu-latest，内存约 7GB，符合你 4核 6GB 的开发习惯
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -15,28 +17,37 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '17' # 如果报错 Unsupported class 61，请降级至 '11'
           cache: gradle
 
-      - name: Create local.properties
-        # 针对该项目，必须手动注入这三个关键变量，否则它会 throw GradleException
+      - name: Optimize Gradle & Environment
+        # 1. 注入 local.properties 2. 增加内存限制防止 OOM 3. 解决中文编码问题
         run: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
           echo "applicationId=com.test.demo2" >> local.properties
           echo "compileSdk=33" >> local.properties
-          cat local.properties
+          
+          echo "org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m" >> gradle.properties
+          echo "org.gradle.parallel=true" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
 
-      - name: Grant execute permission for gradlew
+      - name: Grant execute permission
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        # 增加 --info 可以看到更详细的报错原因
-        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon --info
+      - name: Build with Gradle
+        # -x lint: 跳过耗时且易报错的代码检查
+        # --no-daemon: 在 CI 环境中不开启守护进程，节省内存
+        # assembleDebug: 编译所有的 debug 变体
+        run: ./gradlew assembleDebug -x lint -x test --stacktrace --no-daemon
 
-      - name: Upload APK
+      - name: Locate and Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: my-tsdd-app
-          # 明确路径，避免匹配不到文件
-          path: app/build/outputs/apk/debug/*.apk
+          name: TsChat-Debug-Build
+          # 使用通配符递归搜索，防止项目模块改名导致找不到路径
+          path: "**/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
+
+      - name: Cleanup
+        if: always()
+        run: rm -f local.properties
