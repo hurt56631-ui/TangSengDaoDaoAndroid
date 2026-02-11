@@ -1,0 +1,36 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch: # 允许你手动点击按钮触发打包
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: set up JDK 17 # 建议用 17，现在的 Android 项目兼容性更好
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build Debug APK
+      # 使用 assembleDebug 只打包调试版，速度快且不需要配置签名
+      run: ./gradlew assembleDebug
+
+    - name: Upload APK
+      # 这一步最关键：把打包好的 APK 放到 GitHub 上供你下载
+      uses: actions/upload-artifact@v4
+      with:
+        name: my-tsdd-app
+        path: app/build/outputs/apk/debug/*.apk
