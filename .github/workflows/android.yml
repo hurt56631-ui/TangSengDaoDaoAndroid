@@ -1,56 +1,42 @@
-name: Android CI
+org.gradle.plugin.use.internal.DefaultPluginRequestApplicator$ApplyAction.apply(DefaultPluginRequestApplicator.java:160)
+	... 158 more
+Caused by: com.android.builder.errors.EvalIssueException: Android Gradle plugin requires Java 17 to run. You are currently using Java 11.
+ Your current JDK is located in /usr/lib/jvm/temurin-11-jdk-amd64
+ You can try some of the following options:
+  - changing the IDE settings.
+  - changing the JAVA_HOME environment variable.
+  - changing `org.gradle.java.home` in `gradle.properties`.
+	at com.android.builder.errors.IssueReporter.reportError(IssueReporter.kt:119)
+	at com.android.builder.errors.IssueReporter.reportError$default(IssueReporter.kt:114)
+	at com.android.build.gradle.internal.plugins.AndroidPluginBaseServices.checkMinJvmVersion(AndroidPluginBaseServices.kt:319)
+	at com.android.build.gradle.internal.plugins.AndroidPluginBaseServices.applyBaseServices(AndroidPluginBaseServices.kt:139)
+	at com.android.build.gradle.internal.plugins.BasePlugin$apply$1.run(BasePlugin.kt:358)
+	at com.android.build.gradle.internal.crash.CrashReporting.runAction(crash_reporting.kt:27)
+	at com.android.build.gradle.internal.plugins.BasePlugin.apply(BasePlugin.kt:357)
+	at com.android.build.gradle.internal.plugins.BasePlugin.apply(BasePlugin.kt:130)
+	at org.gradle.api.internal.plugins.ImperativeOnlyPluginTarget.applyImperative(ImperativeOnlyPluginTarget.java:55)
+	at org.gradle.api.internal.plugins.RuleBasedPluginTarget.applyImperative(RuleBasedPluginTarget.java:51)
+	at org.gradle.api.internal.plugins.DefaultPluginManager.addPlugin(DefaultPluginManager.java:190)
+	at org.gradle.api.internal.plugins.DefaultPluginManager.access$100(DefaultPluginManager.java:54)
+	at org.gradle.api.internal.plugins.DefaultPluginManager$AddPluginBuildOperation.run(DefaultPluginManager.java:285)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
+	at org.gradle.api.internal.plugins.DefaultPluginManager.lambda$doApply$0(DefaultPluginManager.java:170)
+	at org.gradle.internal.code.DefaultUserCodeApplicationContext.apply(DefaultUserCodeApplicationContext.java:44)
+	at org.gradle.api.internal.plugins.DefaultPluginManager.doApply(DefaultPluginManager.java:169)
+	... 185 more
 
-on:
-  push:
-    branches: [ "master", "main" ]
-  workflow_dispatch: # 允许你手动点击 Actions 界面上的 Run workflow
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+BUILD FAILED in 1m 17s
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
 
-      - name: Set up JDK 11
-        # 回退到 JDK 11，解决大部分旧版 Kotlin 编译器的兼容性问题
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '11'
-          cache: gradle
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
 
-      - name: Init Local Properties
-        # 针对唐僧叨叨可能存在的脚本校验，注入必要参数
-        run: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          echo "applicationId=com.test.demo2" >> local.properties
-          echo "compileSdk=33" >> local.properties
-          # 顺带优化 Gradle 内存，防止 6GB 级别的项目在编译时崩掉
-          echo "org.gradle.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8" >> gradle.properties
-
-      - name: Grant Execute Permission
-        run: chmod +x gradlew
-
-      - name: Build Debug APK
-        # -x lint: 必须跳过代码扫描，否则很容易因为代码不规范停止编译
-        # -x test: 跳过单元测试
-        # --continue: 即使有非致命错误也继续，尽量跑出最终结果
-        run: ./gradlew assembleDebug -x lint -x test --stacktrace
-
-      - name: Find APK Location
-        # 因为唐僧叨叨是多模块，这一步能帮你确认 APK 到底在哪个文件夹
-        if: always()
-        run: |
-          echo "--- 正在查找生成的 APK 文件 ---"
-          find . -name "*.apk"
-          echo "--- 查找结束 ---"
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: TsChat-Debug-Package
-          # 使用递归匹配，无论它在 app/build 还是 client/build 都能抓到
-          path: "**/build/outputs/apk/debug/*.apk"
-          if-no-files-found: error
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+Error: Process completed with exit code 1.
