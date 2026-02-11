@@ -1,42 +1,44 @@
-org.gradle.plugin.use.internal.DefaultPluginRequestApplicator$ApplyAction.apply(DefaultPluginRequestApplicator.java:160)
-	... 158 more
-Caused by: com.android.builder.errors.EvalIssueException: Android Gradle plugin requires Java 17 to run. You are currently using Java 11.
- Your current JDK is located in /usr/lib/jvm/temurin-11-jdk-amd64
- You can try some of the following options:
-  - changing the IDE settings.
-  - changing the JAVA_HOME environment variable.
-  - changing `org.gradle.java.home` in `gradle.properties`.
-	at com.android.builder.errors.IssueReporter.reportError(IssueReporter.kt:119)
-	at com.android.builder.errors.IssueReporter.reportError$default(IssueReporter.kt:114)
-	at com.android.build.gradle.internal.plugins.AndroidPluginBaseServices.checkMinJvmVersion(AndroidPluginBaseServices.kt:319)
-	at com.android.build.gradle.internal.plugins.AndroidPluginBaseServices.applyBaseServices(AndroidPluginBaseServices.kt:139)
-	at com.android.build.gradle.internal.plugins.BasePlugin$apply$1.run(BasePlugin.kt:358)
-	at com.android.build.gradle.internal.crash.CrashReporting.runAction(crash_reporting.kt:27)
-	at com.android.build.gradle.internal.plugins.BasePlugin.apply(BasePlugin.kt:357)
-	at com.android.build.gradle.internal.plugins.BasePlugin.apply(BasePlugin.kt:130)
-	at org.gradle.api.internal.plugins.ImperativeOnlyPluginTarget.applyImperative(ImperativeOnlyPluginTarget.java:55)
-	at org.gradle.api.internal.plugins.RuleBasedPluginTarget.applyImperative(RuleBasedPluginTarget.java:51)
-	at org.gradle.api.internal.plugins.DefaultPluginManager.addPlugin(DefaultPluginManager.java:190)
-	at org.gradle.api.internal.plugins.DefaultPluginManager.access$100(DefaultPluginManager.java:54)
-	at org.gradle.api.internal.plugins.DefaultPluginManager$AddPluginBuildOperation.run(DefaultPluginManager.java:285)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
-	at org.gradle.api.internal.plugins.DefaultPluginManager.lambda$doApply$0(DefaultPluginManager.java:170)
-	at org.gradle.internal.code.DefaultUserCodeApplicationContext.apply(DefaultUserCodeApplicationContext.java:44)
-	at org.gradle.api.internal.plugins.DefaultPluginManager.doApply(DefaultPluginManager.java:169)
-	... 185 more
+name: Android CI
 
+on:
+  push:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
 
-BUILD FAILED in 1m 17s
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: gradle
 
-For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
-Error: Process completed with exit code 1.
+      - name: Init Properties
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "applicationId=com.test.demo2" >> local.properties
+          echo "compileSdk=33" >> local.properties
+          # 增加内存，防止 4核/6GB 环境下常见的编译溢出
+          echo "org.gradle.jvmargs=-Xmx3072m" >> gradle.properties
+          echo "kotlin.jvm.target=17" >> gradle.properties
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        # 使用 --no-daemon 减少内存占用，-x lint 跳过严格的代码检查
+        run: ./gradlew assembleDebug -x lint -x test --stacktrace --no-daemon
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TsChat-Debug
+          path: "**/build/outputs/apk/debug/*.apk"
