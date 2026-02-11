@@ -3,51 +3,54 @@ name: Android CI
 on:
   push:
     branches: [ "master", "main" ]
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch: # 允许你手动点击 Actions 界面上的 Run workflow
 
 jobs:
   build:
-    # 使用 ubuntu-latest，内存约 7GB，符合你 4核 6GB 的开发习惯
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 11
+        # 回退到 JDK 11，解决大部分旧版 Kotlin 编译器的兼容性问题
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17' # 如果报错 Unsupported class 61，请降级至 '11'
+          java-version: '11'
           cache: gradle
 
-      - name: Optimize Gradle & Environment
-        # 1. 注入 local.properties 2. 增加内存限制防止 OOM 3. 解决中文编码问题
+      - name: Init Local Properties
+        # 针对唐僧叨叨可能存在的脚本校验，注入必要参数
         run: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
           echo "applicationId=com.test.demo2" >> local.properties
           echo "compileSdk=33" >> local.properties
-          
-          echo "org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m" >> gradle.properties
-          echo "org.gradle.parallel=true" >> gradle.properties
-          echo "android.useAndroidX=true" >> gradle.properties
+          # 顺带优化 Gradle 内存，防止 6GB 级别的项目在编译时崩掉
+          echo "org.gradle.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8" >> gradle.properties
 
-      - name: Grant execute permission
+      - name: Grant Execute Permission
         run: chmod +x gradlew
 
-      - name: Build with Gradle
-        # -x lint: 跳过耗时且易报错的代码检查
-        # --no-daemon: 在 CI 环境中不开启守护进程，节省内存
-        # assembleDebug: 编译所有的 debug 变体
-        run: ./gradlew assembleDebug -x lint -x test --stacktrace --no-daemon
+      - name: Build Debug APK
+        # -x lint: 必须跳过代码扫描，否则很容易因为代码不规范停止编译
+        # -x test: 跳过单元测试
+        # --continue: 即使有非致命错误也继续，尽量跑出最终结果
+        run: ./gradlew assembleDebug -x lint -x test --stacktrace
 
-      - name: Locate and Upload APK
+      - name: Find APK Location
+        # 因为唐僧叨叨是多模块，这一步能帮你确认 APK 到底在哪个文件夹
+        if: always()
+        run: |
+          echo "--- 正在查找生成的 APK 文件 ---"
+          find . -name "*.apk"
+          echo "--- 查找结束 ---"
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TsChat-Debug-Build
-          # 使用通配符递归搜索，防止项目模块改名导致找不到路径
+          name: TsChat-Debug-Package
+          # 使用递归匹配，无论它在 app/build 还是 client/build 都能抓到
           path: "**/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
-
-      - name: Cleanup
-        if: always()
-        run: rm -f local.properties
