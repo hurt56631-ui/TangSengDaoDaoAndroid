@@ -8,6 +8,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.content.res.Configuration;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
@@ -21,6 +22,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
@@ -131,6 +133,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -192,6 +195,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
     private int hideChannelAllPinnedMessage = 0;
     private PanelSwitchHelper mHelper;
     private ChatPanelManager chatPanelManager;
+    private HarmonyChatWindowController harmonyWindowController;
     private ActChatLayoutBinding wkVBinding;
     private int unfilledHeight = 0;
     private final String loginUID = WKConfig.getInstance().getUid();
@@ -268,6 +272,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         initParam();
         initView();
         initListener();
+        installHarmonyChatWindow();
         //initData();
         ActManagerUtils.getInstance().addActivity(this);
     }
@@ -279,6 +284,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         WKUIKitApplication.getInstance().chattingChannelID = channelId;
         isUploadReadMsg = true;
         chatPanelManager.initRefreshListener();
+        if (harmonyWindowController != null) harmonyWindowController.onResume();
         EndpointManager.getInstance().invoke("start_screen_shot", this);
 
         Object addSecurityModule = EndpointManager.getInstance().invoke("add_security_module", null);
@@ -470,54 +476,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         }));
         helper.attachToRecyclerView(wkVBinding.recyclerView);
         wkVBinding.topLayout.backIv.setOnClickListener(v -> setBackListener());
-        callIV.setOnClickListener(view -> {
-            WKChannelMember member = WKIM.getInstance().getChannelMembersManager().getMember(channelId, channelType, loginUID);
-            if (getChatChannelInfo().forbidden == 1 || (member != null && member.forbiddenExpirationTime > 0)) {
-                WKToastUtils.getInstance().showToast(getString(R.string.can_not_call_forbidden));
-                return;
-            }
-            String desc = String.format(getString(R.string.microphone_permissions_des), getString(R.string.app_name));
-            WKPermissions.getInstance().checkPermissions(new WKPermissions.IPermissionResult() {
-                @Override
-                public void onResult(boolean result) {
-                    if (result) {
-                        if (channelType == WKChannelType.PERSONAL) {
-                            if (UserUtils.getInstance().checkMyFriendDelete(channelId) || UserUtils.getInstance().checkFriendRelation(channelId)) {
-                                showToast(R.string.non_friend_relationship);
-                                return;
-                            }
-                            if (UserUtils.getInstance().checkBlacklist(channelId)) {
-                                showToast(R.string.call_be_blacklist);
-                                return;
-                            }
-                            if (getChatChannelInfo().status == WKChannelStatus.statusBlacklist) {
-                                showToast(R.string.call_blacklist);
-                                return;
-                            }
-                            List<PopupMenuItem> list = new ArrayList<>();
-                            list.add(new PopupMenuItem(getString(R.string.video_call), R.mipmap.chat_calls_video, () -> p2pCall(1)));
-                            list.add(new PopupMenuItem(getString(R.string.audio_call), R.mipmap.chat_calls_voice, () -> p2pCall(0)));
-                            WKDialogUtils.getInstance().showScreenPopup(view, list);
-                        } else {
-                            WKChannelMember channelMember = WKIM.getInstance().getChannelMembersManager().getMember(channelId, channelType, loginUID);
-                            if (channelMember != null && channelMember.status == WKChannelStatus.statusBlacklist) {
-                                showToast(R.string.call_blacklist_group);
-                                return;
-                            }
-                            Intent intent = new Intent(ChatActivity.this, ChooseVideoCallMembersActivity.class);
-                            intent.putExtra("channelID", channelId);
-                            intent.putExtra("channelType", channelType);
-                            intent.putExtra("isCreate", true);
-                            startActivity(intent);
-                        }
-                    }
-                }
-
-                @Override
-                public void clickResult(boolean isCancel) {
-                }
-            }, this, desc, Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO);
-        });
+        callIV.setOnClickListener(this::openCallChooser);
 
         WKDialogUtils.getInstance().setViewLongClickPopup(wkVBinding.chatUnreadLayout.groupApproveLayout, getGroupApprovePopupItems());
         wkVBinding.chatUnreadLayout.groupApproveLayout.setOnClickListener(view -> {
@@ -950,6 +909,171 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         initParam();
         initData();
     }
+
+    private void installHarmonyChatWindow() {
+        try {
+            harmonyWindowController = new HarmonyChatWindowController(this, wkVBinding);
+            harmonyWindowController.install();
+        } catch (Throwable error) {
+            Log.e("HarmonyChat", "install failed", error);
+        }
+    }
+
+    public void openHarmonyAudioCall() {
+        runHarmonyCallFlow(0, null);
+    }
+
+    public void openHarmonyVideoCall() {
+        runHarmonyCallFlow(1, null);
+    }
+
+    public void openCallChooser(View anchor) {
+        runHarmonyCallFlow(-1, anchor);
+    }
+
+    private void runHarmonyCallFlow(int directType, @Nullable View anchor) {
+        WKChannelMember member = WKIM.getInstance().getChannelMembersManager().getMember(channelId, channelType, loginUID);
+        if (getChatChannelInfo().forbidden == 1 || (member != null && member.forbiddenExpirationTime > 0)) {
+            WKToastUtils.getInstance().showToast(getString(R.string.can_not_call_forbidden));
+            return;
+        }
+        String desc = String.format(getString(R.string.microphone_permissions_des), getString(R.string.app_name));
+        WKPermissions.getInstance().checkPermissions(new WKPermissions.IPermissionResult() {
+            @Override
+            public void onResult(boolean result) {
+                if (!result) return;
+                if (channelType == WKChannelType.PERSONAL) {
+                    if (UserUtils.getInstance().checkMyFriendDelete(channelId) || UserUtils.getInstance().checkFriendRelation(channelId)) {
+                        showToast(R.string.non_friend_relationship);
+                        return;
+                    }
+                    if (UserUtils.getInstance().checkBlacklist(channelId)) {
+                        showToast(R.string.call_be_blacklist);
+                        return;
+                    }
+                    if (getChatChannelInfo().status == WKChannelStatus.statusBlacklist) {
+                        showToast(R.string.call_blacklist);
+                        return;
+                    }
+                    if (directType == 0 || directType == 1) {
+                        p2pCall(directType);
+                        return;
+                    }
+                    List<PopupMenuItem> list = new ArrayList<>();
+                    list.add(new PopupMenuItem(getString(R.string.video_call), R.mipmap.chat_calls_video, () -> p2pCall(1)));
+                    list.add(new PopupMenuItem(getString(R.string.audio_call), R.mipmap.chat_calls_voice, () -> p2pCall(0)));
+                    WKDialogUtils.getInstance().showScreenPopup(anchor == null ? wkVBinding.topLayout.rightView : anchor, list);
+                    return;
+                }
+                WKChannelMember channelMember = WKIM.getInstance().getChannelMembersManager().getMember(channelId, channelType, loginUID);
+                if (channelMember != null && channelMember.status == WKChannelStatus.statusBlacklist) {
+                    showToast(R.string.call_blacklist_group);
+                    return;
+                }
+                Intent intent = new Intent(ChatActivity.this, ChooseVideoCallMembersActivity.class);
+                intent.putExtra("channelID", channelId);
+                intent.putExtra("channelType", channelType);
+                intent.putExtra("isCreate", true);
+                intent.putExtra("callType", directType == 0 ? 0 : 1);
+                startActivity(intent);
+            }
+
+            @Override
+            public void clickResult(boolean isCancel) {
+            }
+        }, this, desc, Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO);
+    }
+
+    public void sendHarmonyPlainText(String text) {
+        if (TextUtils.isEmpty(text)) return;
+        try {
+            Class<?> clazz = Class.forName("com.xinbida.wukongim.msgmodel.WKTextContent");
+            Constructor<?> constructor = clazz.getConstructor(String.class);
+            WKMessageContent content = (WKMessageContent) constructor.newInstance(text);
+            sendMessage(content);
+        } catch (Throwable error) {
+            Log.e("HarmonyChat", "sendHarmonyPlainText failed", error);
+            WKToastUtils.getInstance().showToast("未找到文字消息类型，请把 WKTextContent 类名补到 sendHarmonyPlainText");
+        }
+    }
+
+    public void sendHarmonyImage(String localPath) {
+        if (TextUtils.isEmpty(localPath)) return;
+        sendMsg(new WKImageContent(localPath));
+    }
+
+    public void sendHarmonyVideo(String localPath) {
+        if (TextUtils.isEmpty(localPath)) return;
+        try {
+            String[] candidates = new String[]{
+                    "com.xinbida.wukongim.msgmodel.WKVideoContent",
+                    "com.xinbida.wukongim.msgmodel.WKVideoMessageContent"
+            };
+            for (String candidate : candidates) {
+                try {
+                    Class<?> clazz = Class.forName(candidate);
+                    Constructor<?> constructor = clazz.getConstructor(String.class);
+                    WKMessageContent content = (WKMessageContent) constructor.newInstance(localPath);
+                    sendMsg(content);
+                    return;
+                } catch (Throwable ignore) {
+                }
+            }
+            WKToastUtils.getInstance().showToast("未找到视频消息类型，请把视频 content 类名补到 sendHarmonyVideo");
+        } catch (Throwable error) {
+            Log.e("HarmonyChat", "sendHarmonyVideo failed", error);
+            WKToastUtils.getInstance().showToast("发送视频失败");
+        }
+    }
+
+    public void launchHarmonyPicker(boolean onlyImage) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(onlyImage ? "image/*" : "*/*");
+        if (!onlyImage) {
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"});
+        }
+        harmonyPickMediaLauncher.launch(intent);
+    }
+
+    public void launchHarmonyBackgroundPicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        harmonyPickBackgroundLauncher.launch(intent);
+    }
+
+    public ImageView getLegacyCallButtonForHarmony() {
+        return callIV;
+    }
+
+    public ChatPanelManager getChatPanelManagerForHarmony() {
+        return chatPanelManager;
+    }
+
+    public String getHarmonyChannelId() {
+        return channelId;
+    }
+
+    public byte getHarmonyChannelType() {
+        return channelType;
+    }
+
+    public ActivityResultLauncher<Intent> harmonyPickMediaLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) return;
+        Uri uri = result.getData().getData();
+        if (uri != null && harmonyWindowController != null) {
+            harmonyWindowController.onMediaUriPicked(uri, getContentResolver().getType(uri));
+        }
+    });
+
+    public ActivityResultLauncher<Intent> harmonyPickBackgroundLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) return;
+        Uri uri = result.getData().getData();
+        if (uri != null && harmonyWindowController != null) {
+            harmonyWindowController.onBackgroundUriPicked(uri);
+        }
+    });
 
     private void initData() {
         startTimer();
@@ -1468,6 +1592,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         resetGroupApproveView();
 
 //        if (WKReader.isNotEmpty(list)) {
+            if (harmonyWindowController != null) harmonyWindowController.onMessagesAppended(list);
 //            List<WKUIChatMsgItemEntity> msgList = chatAdapter.getData();
 //            List<Long> ids = new ArrayList<>();
 //            for (int i = 0, size = list.size(); i < size; i++) {
@@ -1887,6 +2012,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         WKChannel channel = getChatChannelInfo();
         wkMsg.setChannelInfo(channel);
         WKSendMsgUtils.getInstance().sendMessage(wkMsg);
+        if (harmonyWindowController != null) harmonyWindowController.onOutgoingMessageRequested(messageContent);
     }
 
     private boolean isUpdate(WKMessageContent messageContent) {
@@ -2247,6 +2373,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
     protected void onDestroy() {
         super.onDestroy();
         chatPanelManager.onDestroy();
+        if (harmonyWindowController != null) harmonyWindowController.onDestroy();
         ActManagerUtils.getInstance().removeActivity(this);
         if (disposable != null) {
             disposable.dispose();
@@ -2300,6 +2427,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
     protected void onStop() {
         super.onStop();
         isShowChatActivity = false;
+        if (harmonyWindowController != null) harmonyWindowController.onStop();
         WKUIKitApplication.getInstance().chattingChannelID = "";
         isUploadReadMsg = false;
         WKPlayVoiceUtils.getInstance().stopPlay();
@@ -2367,6 +2495,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
                 scrollToEnd();
             }
             isToEnd = true;
+            if (harmonyWindowController != null) harmonyWindowController.onMessageInserted(msg);
         }
     }
 
