@@ -183,6 +183,8 @@ class ChatPanelManager(
     private var lastHeight = 0
     private var lastTargetLines = 1 // 追踪上一次的目标行数
     private val maxLines: Int = 3
+    private var isTapRecording: Boolean = false
+    private var simpleEmojiPanel: View? = null
 
     init {
         this.menuView.background = Theme.getBackground(Theme.colorAccount, 30f)
@@ -193,15 +195,12 @@ class ChatPanelManager(
         editText.setMaxLines(maxLines)
         initListener()
         initRemind()
-        initRobotGIF()
-        initRobotMenu()
-        initTool()
         initMultipleChoiceView()
         initBanView()
         initForbiddenView()
         initChatTopView()
-        initFlame()
         initNewImageView()
+        applySimpleComposerUi()
         EndpointManager.getInstance().invoke(
             "initInputPanel",
             InitInputPanelMenu(
@@ -353,11 +352,11 @@ class ChatPanelManager(
     }
 
     private fun isDisableToolBar(isDisable: Boolean) {
-        for (index in toolBarAdapter!!.data.indices) {
-            toolBarAdapter!!.data[index].isDisable = isDisable
+        val adapter = toolBarAdapter ?: return
+        for (index in adapter.data.indices) {
+            adapter.data[index].isDisable = isDisable
         }
-        toolBarAdapter!!.notifyItemRangeChanged(0, toolBarAdapter!!.itemCount)
-
+        adapter.notifyItemRangeChanged(0, adapter.itemCount)
     }
 
     fun getEditText(): ContactEditText {
@@ -873,6 +872,78 @@ class ChatPanelManager(
     }
 
 
+
+    private fun applySimpleComposerUi() {
+        toolbarRecyclerView.visibility = View.GONE
+        menuView.visibility = View.GONE
+        flameIV.visibility = View.GONE
+        markdownIv.visibility = View.VISIBLE
+        markdownIv.setImageResource(R.mipmap.icon_chat_toolbar_emoji)
+        updateSendButtonState(false)
+    }
+
+    private fun updateSendButtonState(hasText: Boolean) {
+        if (hasText) {
+            sendIV.setImageResource(android.R.drawable.ic_menu_send)
+            sendIV.colorFilter = PorterDuffColorFilter(
+                Theme.colorAccount,
+                PorterDuff.Mode.MULTIPLY
+            )
+        } else {
+            sendIV.setImageResource(android.R.drawable.ic_btn_speak_now)
+            sendIV.colorFilter = PorterDuffColorFilter(
+                ContextCompat.getColor(
+                    iConversationContext.chatActivity,
+                    R.color.popupTextColor
+                ),
+                PorterDuff.Mode.MULTIPLY
+            )
+        }
+    }
+
+    private fun toggleSimpleEmojiPanel() {
+        if (simpleEmojiPanel == null) {
+            simpleEmojiPanel = getEmojiLayout()
+        }
+        if (helper.isPanelState() && moreLayout.childCount > 0 && moreLayout.getChildAt(0) === simpleEmojiPanel) {
+            helper.resetState()
+            SoftKeyboardUtils.getInstance().requestFocus(editText)
+            return
+        }
+        moreLayout.removeAllViews()
+        moreLayout.addView(
+            simpleEmojiPanel,
+            LayoutHelper.createFrame(
+                LayoutHelper.MATCH_PARENT,
+                LayoutHelper.MATCH_PARENT.toFloat()
+            )
+        )
+        SoftKeyboardUtils.getInstance().loseFocus(editText)
+        SoftKeyboardUtils.getInstance().hideInput(iConversationContext.chatActivity, editText)
+        helper.toPanelState(R.id.emotionView)
+    }
+
+    private fun startTapRecord() {
+        isTapRecording = true
+        sendIV.setImageResource(android.R.drawable.ic_media_pause)
+        sendIV.colorFilter = PorterDuffColorFilter(
+            ContextCompat.getColor(iConversationContext.chatActivity, R.color.red),
+            PorterDuff.Mode.MULTIPLY
+        )
+        EndpointManager.getInstance().invoke("simple_click_record_start", iConversationContext)
+        WKToastUtils.getInstance().showToastNormal("再次点击结束录音")
+    }
+
+    private fun stopTapRecord(send: Boolean) {
+        isTapRecording = false
+        updateSendButtonState(false)
+        if (send) {
+            EndpointManager.getInstance().invoke("simple_click_record_stop_and_send", iConversationContext)
+        } else {
+            EndpointManager.getInstance().invoke("simple_click_record_cancel", iConversationContext)
+        }
+    }
+
     private fun initTool() {
         toolBarAdapter = WKChatToolBarAdapter()
         toolBarAdapter?.animationEnable = false
@@ -1275,10 +1346,22 @@ class ChatPanelManager(
             null
         }
         SingleClickUtil.onSingleClick(markdownIv) {
-            EndpointManager.getInstance().invoke("show_rich_edit", iConversationContext)
+            toggleSimpleEmojiPanel()
         }
         sendIV.setOnClickListener {
-            var content = StringUtils.replaceBlank(editText.text.toString())
+            val plainText = StringUtils.replaceBlank(editText.text.toString())
+            if (TextUtils.isEmpty(plainText)) {
+                if (isTapRecording) {
+                    stopTapRecord(true)
+                } else {
+                    startTapRecord()
+                }
+                return@setOnClickListener
+            }
+            if (isTapRecording) {
+                stopTapRecord(false)
+            }
+            var content = plainText
             if (!TextUtils.isEmpty(content)) {
                 content = editText.text.toString()
                 sendIV.colorFilter = PorterDuffColorFilter(
@@ -1347,37 +1430,14 @@ class ChatPanelManager(
                 this.count = count
                 if (!TextUtils.isEmpty(s.toString())) {
                     val content = StringUtils.replaceBlank(s.toString())
-//                    val content = s.toString().replace("\\s*|\r|\n|\t", "")
                     if (!isShowSendBtn && !TextUtils.isEmpty(content)) {
                         CommonAnim.getInstance().animImageView(sendIV)
                     }
-                    isShowSendBtn = true
-                    if (TextUtils.isEmpty(content)) {
-                        sendIV.colorFilter = PorterDuffColorFilter(
-                            ContextCompat.getColor(
-                                iConversationContext.chatActivity, R.color.popupTextColor
-                            ), PorterDuff.Mode.MULTIPLY
-                        )
-                    } else {
-                        sendIV.colorFilter = PorterDuffColorFilter(
-                            Theme.colorAccount, PorterDuff.Mode.MULTIPLY
-                        )
-                    }
-                    CommonAnim.getInstance().showOrHide(markdownIv, false, true)
-                    if (flame == 1) {
-                        CommonAnim.getInstance().showOrHide(flameIV, false, true)
-                    }
+                    isShowSendBtn = !TextUtils.isEmpty(content)
+                    updateSendButtonState(isShowSendBtn)
                 } else {
-                    CommonAnim.getInstance().showOrHide(markdownIv, true, true)
-                    if (flame == 1) {
-                        CommonAnim.getInstance().showOrHide(flameIV, true, true)
-                    }
                     isShowSendBtn = false
-                    sendIV.colorFilter = PorterDuffColorFilter(
-                        ContextCompat.getColor(
-                            iConversationContext.chatActivity, R.color.popupTextColor
-                        ), PorterDuff.Mode.MULTIPLY
-                    )
+                    updateSendButtonState(false)
                 }
                 val selectionStart = editText.selectionStart
                 val selectionEnd = editText.selectionEnd
@@ -1762,12 +1822,12 @@ class ChatPanelManager(
 
 
     fun resetToolBar() {
-        for (index in toolBarAdapter!!.data.indices) {
-            toolBarAdapter!!.getItem(index).isDisable =
-                false
-            toolBarAdapter!!.getItem(index).isSelected = false
+        val adapter = toolBarAdapter ?: return
+        for (index in adapter.data.indices) {
+            adapter.getItem(index).isDisable = false
+            adapter.getItem(index).isSelected = false
         }
-        toolBarAdapter!!.notifyItemRangeChanged(0, toolBarAdapter!!.itemCount)
+        adapter.notifyItemRangeChanged(0, adapter.itemCount)
     }
 
     private fun getEmojiLayout(): View {
