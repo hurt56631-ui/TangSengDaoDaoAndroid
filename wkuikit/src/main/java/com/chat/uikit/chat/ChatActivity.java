@@ -1051,6 +1051,53 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         return chatPanelManager;
     }
 
+    public void startHarmonyTapRecord() {
+        if (tryInvokeChatPanelManager("startRecord")) return;
+        if (tryInvokeChatPanelManager("startVoiceRecord")) return;
+        if (tryInvokeChatPanelManager("openRecordPanel")) return;
+        if (tryInvokeChatPanelManager("onVoiceButtonClick")) return;
+        WKToastUtils.getInstance().showToast("请把 ChatPanelManager 的开始录音方法名补到 startHarmonyTapRecord");
+    }
+
+    public void stopHarmonyTapRecord(boolean send) {
+        if (send) {
+            if (tryInvokeChatPanelManager("stopRecord", Boolean.TYPE, true)) return;
+            if (tryInvokeChatPanelManager("stopVoiceRecord", Boolean.TYPE, true)) return;
+            if (tryInvokeChatPanelManager("finishRecord", Boolean.TYPE, true)) return;
+            if (tryInvokeChatPanelManager("sendRecord")) return;
+        } else {
+            if (tryInvokeChatPanelManager("stopRecord", Boolean.TYPE, false)) return;
+            if (tryInvokeChatPanelManager("stopVoiceRecord", Boolean.TYPE, false)) return;
+            if (tryInvokeChatPanelManager("finishRecord", Boolean.TYPE, false)) return;
+            if (tryInvokeChatPanelManager("cancelRecord")) return;
+        }
+        WKToastUtils.getInstance().showToast(send ? "请把 ChatPanelManager 的结束发送录音方法名补到 stopHarmonyTapRecord" : "请把 ChatPanelManager 的取消录音方法名补到 stopHarmonyTapRecord");
+    }
+
+    private boolean tryInvokeChatPanelManager(String methodName) {
+        if (chatPanelManager == null) return false;
+        try {
+            java.lang.reflect.Method method = chatPanelManager.getClass().getMethod(methodName);
+            method.setAccessible(true);
+            method.invoke(chatPanelManager);
+            return true;
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
+
+    private boolean tryInvokeChatPanelManager(String methodName, Class<?> paramType, Object value) {
+        if (chatPanelManager == null) return false;
+        try {
+            java.lang.reflect.Method method = chatPanelManager.getClass().getMethod(methodName, paramType);
+            method.setAccessible(true);
+            method.invoke(chatPanelManager, value);
+            return true;
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
+
     public String getHarmonyChannelId() {
         return channelId;
     }
