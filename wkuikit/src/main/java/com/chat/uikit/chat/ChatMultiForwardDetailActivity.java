@@ -38,7 +38,7 @@ public class ChatMultiForwardDetailActivity extends WKBaseActivity<ActCommonList
         if (WKMultiForwardContent.channelType == 1) {
             if (WKMultiForwardContent.userList.size() > 1) {
                 StringBuilder sBuilder = new StringBuilder();
-                for (int i = 0; i < WKMultiForwardContent.userList.size(); i++) {
+                for (int i = 0; i < WKMultiForwardContent.userList.sze(); i++) {
                     if (!TextUtils.isEmpty(sBuilder))
                         sBuilder.append("、");
                     sBuilder.append(WKMultiForwardContent.userList.get(i).channelName);
