@@ -33,7 +33,7 @@ import com.xinbida.wukongim.entity.WKChannelType;
 
 /**
  * 2019-12-08 12:26
- * 个人会话资料页面
+ * 个人会话资料页面2
  */
 public class ChatPersonalActivity extends WKBaseActivity<ActChatPersonalLayoutBinding> {
     private String channelId;
