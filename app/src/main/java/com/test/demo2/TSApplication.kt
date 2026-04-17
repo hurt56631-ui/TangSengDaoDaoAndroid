@@ -35,7 +35,7 @@ import com.chat.uikit.TabActivity
 import com.chat.uikit.WKUIKitApplication
 import com.chat.uikit.chat.manager.WKIMUtils
 import com.chat.uikit.user.service.UserModel
-import com.test.ts.R
+import com.test.demo2.R
 import kotlin.system.exitProcess
 
 class TSApplication : MultiDexApplication() {
