@@ -132,10 +132,72 @@
                     android:background="@color/chat_face_tab_bg"
                     android:orientation="vertical">
 
-                    <FrameLayout
+                                        <FrameLayout
                         android:id="@+id/chatTopLayout"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content" />
+
+                    <LinearLayout
+                        android:id="@+id/translateBar"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginTop="6dp"
+                        android:layout_marginEnd="10dp"
+                        android:layout_marginBottom="4dp"
+                        android:background="@drawable/chat_edit_bg"
+                        android:gravity="center"
+                        android:orientation="horizontal"
+                        android:paddingStart="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingEnd="10dp"
+                        android:paddingBottom="4dp">
+
+                        <androidx.appcompat.widget.AppCompatTextView
+                            android:id="@+id/sourceLangTv"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingStart="4dp"
+                            android:paddingEnd="4dp"
+                            android:text="中文"
+                            android:textColor="@color/colorDark"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <androidx.appcompat.widget.AppCompatTextView
+                            android:id="@+id/swapLangTv"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="4dp"
+                            android:layout_marginEnd="4dp"
+                            android:text="⇄"
+                            android:textColor="@color/color999"
+                            android:textSize="12sp" />
+
+                        <androidx.appcompat.widget.AppCompatTextView
+                            android:id="@+id/targetLangTv"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingStart="4dp"
+                            android:paddingEnd="4dp"
+                            android:text="မြန်မာစာ"
+                            android:textColor="@color/colorDark"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <androidx.appcompat.widget.AppCompatTextView
+                            android:id="@+id/translateToggleTv"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/chat_edit_bg"
+                            android:gravity="center"
+                            android:text="译"
+                            android:textColor="@color/color999"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <View
                         android:layout_width="match_parent"
@@ -151,27 +213,33 @@
                             android:id="@+id/chatView"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:padding="10dp">
+                            android:gravity="bottom|center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="10dp"
+                            android:paddingTop="8dp"
+                            android:paddingEnd="10dp"
+                            android:paddingBottom="8dp">
 
                             <LinearLayout
                                 android:id="@+id/menuView"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_gravity="bottom"
-                                android:layout_marginEnd="10dp"
-                                android:visibility="gone">
+                                android:layout_gravity="center_vertical"
+                                android:layout_marginEnd="8dp"
+                                android:visibility="visible">
 
                                 <LinearLayout
                                     android:id="@+id/menuLayout"
-                                    android:layout_width="50dp"
-                                    android:layout_height="30dp"
+                                    android:layout_width="40dp"
+                                    android:layout_height="40dp"
+                                    android:background="@drawable/chat_edit_bg"
                                     android:gravity="center">
 
                                     <androidx.appcompat.widget.AppCompatImageView
                                         android:id="@+id/menuIv"
-                                        android:layout_width="25dp"
-                                        android:layout_height="25dp"
-                                        android:src="@mipmap/icon_menu"
+                                        android:layout_width="20dp"
+                                        android:layout_height="20dp"
+                                        android:src="@android:drawable/ic_menu_camera"
                                         tools:ignore="TooDeepLayout" />
                                 </LinearLayout>
                             </LinearLayout>
@@ -182,42 +250,53 @@
                                 android:layout_weight="1"
                                 android:animateLayoutChanges="true"
                                 android:background="@drawable/chat_edit_bg"
-                                android:orientation="horizontal">
+                                android:minHeight="44dp"
+                                android:orientation="horizontal"
+                                android:paddingStart="4dp"
+                                android:paddingTop="2dp"
+                                android:paddingEnd="4dp"
+                                android:paddingBottom="2dp">
 
                                 <com.chat.base.ui.components.ContactEditText
                                     android:id="@+id/editText"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
+                                    android:layout_centerVertical="true"
+                                    android:layout_toStartOf="@id/emojiActionWrap"
                                     android:background="@color/transparent"
                                     android:focusable="true"
                                     android:gravity="center_vertical"
+                                    android:hint="发送消息..."
                                     android:maxHeight="200dp"
                                     android:maxLines="3"
-                                    android:minHeight="35dp"
-                                    android:padding="5dp"
-                                    android:paddingStart="5dp"
-                                    android:paddingEnd="5dp"
-                                    android:paddingBottom="3dp"
+                                    android:minHeight="40dp"
+                                    android:paddingStart="10dp"
+                                    android:paddingTop="7dp"
+                                    android:paddingEnd="6dp"
+                                    android:paddingBottom="7dp"
                                     android:textColor="@color/colorDark"
                                     android:textColorHint="@color/color999"
                                     android:textSize="14sp" />
-
 
                                 <TextView
                                     android:id="@+id/hitTv"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:layout_alignParentStart="true"
-                                    android:layout_centerInParent="true"
+                                    android:layout_centerVertical="true"
+                                    android:layout_marginStart="12dp"
                                     android:layout_marginEnd="10dp"
                                     android:textSize="14sp"
                                     tools:ignore="RelativeOverlap" />
 
                                 <LinearLayout
+                                    android:id="@+id/emojiActionWrap"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:layout_alignParentEnd="true"
-                                    android:layout_centerInParent="true">
+                                    android:layout_centerVertical="true"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal">
 
                                     <androidx.appcompat.widget.AppCompatImageView
                                         android:id="@+id/flameIV"
@@ -225,7 +304,7 @@
                                         android:layout_height="20dp"
                                         android:layout_gravity="center"
                                         android:layout_marginTop="3dp"
-                                        android:layout_marginEnd="10dp"
+                                        android:layout_marginEnd="6dp"
                                         android:layout_marginBottom="3dp"
                                         android:src="@mipmap/flame_small"
                                         android:tint="#ff2d51"
@@ -233,12 +312,12 @@
 
                                     <androidx.appcompat.widget.AppCompatImageView
                                         android:id="@+id/markdownIv"
-                                        android:layout_width="20dp"
-                                        android:layout_height="20dp"
-                                        android:layout_marginTop="3dp"
-                                        android:layout_marginEnd="10dp"
-                                        android:layout_marginBottom="3dp"
-                                        android:src="@mipmap/ic_a"
+                                        android:layout_width="36dp"
+                                        android:layout_height="36dp"
+                                        android:layout_marginStart="2dp"
+                                        android:layout_marginEnd="2dp"
+                                        android:padding="8dp"
+                                        android:src="@mipmap/icon_chat_toolbar_emoji"
                                         android:visibility="visible" />
                                 </LinearLayout>
 
@@ -251,17 +330,18 @@
                                 android:visibility="gone" />
 
                             <FrameLayout
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="bottom"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
+                                android:layout_gravity="center_vertical"
                                 android:layout_marginStart="8dp"
                                 android:animateLayoutChanges="true">
 
                                 <androidx.appcompat.widget.AppCompatImageView
                                     android:id="@+id/sendIV"
-                                    android:layout_width="35dp"
-                                    android:layout_height="35dp"
-                                    android:padding="5dp"
+                                    android:layout_width="40dp"
+                                    android:layout_height="40dp"
+                                    android:layout_gravity="center"
+                                    android:padding="8dp"
                                     android:src="@mipmap/icon_chat_send"
                                     android:tint="@color/popupTextColor"
                                     android:visibility="visible" />
@@ -273,7 +353,8 @@
                         android:id="@+id/toolbarRecyclerView"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:background="@color/chat_face_tab_bg" />
+                        android:background="@color/chat_face_tab_bg"
+                        android:visibility="gone" />
                 </LinearLayout>
             </com.effective.android.panel.view.content.RelativeContentContainer>
 
@@ -290,6 +371,12 @@
                     android:layout_height="match_parent"
                     app:panel_layout="@layout/chat_panel_emotion_layout"
                     app:panel_trigger="@id/emotionView" />
+
+                <FrameLayout
+                    android:id="@+id/chatMoreLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@color/homeColor" />
             </com.effective.android.panel.view.panel.PanelContainer>
         </com.effective.android.panel.view.PanelSwitchLayout>
 
