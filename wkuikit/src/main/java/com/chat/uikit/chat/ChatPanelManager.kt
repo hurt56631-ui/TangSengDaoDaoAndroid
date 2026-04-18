@@ -183,12 +183,6 @@ class ChatPanelManager(
     private var lastHeight = 0
     private var lastTargetLines = 1 // 追踪上一次的目标行数
     private val maxLines: Int = 3
-    private val primaryToolbarOrder = listOf(
-        "emojiToolBar",
-        "wk_chat_toolbar_voice",
-        "wk_chat_toolbar_more",
-        "wk_chat_toolbar_remind"
-    )
 
     init {
         this.menuView.background = Theme.getBackground(Theme.colorAccount, 30f)
@@ -208,8 +202,6 @@ class ChatPanelManager(
         initChatTopView()
         initFlame()
         initNewImageView()
-        markdownIv.visibility = View.GONE
-        markdownIv.isEnabled = false
         EndpointManager.getInstance().invoke(
             "initInputPanel",
             InitInputPanelMenu(
@@ -745,8 +737,9 @@ class ChatPanelManager(
         if (flame == 1) {
             flameIV.visibility = View.VISIBLE
             CommonAnim.getInstance().showOrHide(flameIV, true, true)
-        }
-        markdownIv.visibility = View.GONE
+            markdownIv.visibility = View.GONE
+        } else
+            markdownIv.visibility = View.VISIBLE
         seekBarView?.setDelegate(object : SeekBarView.SeekBarViewDelegate {
             override fun onSeekBarDrag(stop: Boolean, progress: Float) {
                 if (stop)
@@ -914,7 +907,7 @@ class ChatPanelManager(
             ) { _, _ -> }
             tempToolBarList.add(0, emojiToolBar)
         }
-        toolBarAdapter?.setList(reorderToolbarMenus(tempToolBarList))
+        toolBarAdapter?.setList(tempToolBarList)
         toolBarAdapter?.addChildClickViewIds(R.id.imageView)
         toolBarAdapter?.setOnItemChildClickListener { adapter1: BaseQuickAdapter<*, *>, view: View, position: Int ->
             if (view.id == R.id.imageView) {
@@ -1282,15 +1275,10 @@ class ChatPanelManager(
             null
         }
         SingleClickUtil.onSingleClick(markdownIv) {
-            // 已按需求隐藏富文本入口，保留空实现避免影响现有布局引用
+            EndpointManager.getInstance().invoke("show_rich_edit", iConversationContext)
         }
         sendIV.setOnClickListener {
             var content = StringUtils.replaceBlank(editText.text.toString())
-            if (TextUtils.isEmpty(content)) {
-                if (openVoiceInputFromPrimaryButton()) {
-                    return@setOnClickListener
-                }
-            }
             if (!TextUtils.isEmpty(content)) {
                 content = editText.text.toString()
                 sendIV.colorFilter = PorterDuffColorFilter(
@@ -1359,17 +1347,38 @@ class ChatPanelManager(
                 this.count = count
                 if (!TextUtils.isEmpty(s.toString())) {
                     val content = StringUtils.replaceBlank(s.toString())
-//                    val content = s.toString().replace("\s*|\r|\n|\t", "")
+//                    val content = s.toString().replace("\\s*|\r|\n|\t", "")
                     if (!isShowSendBtn && !TextUtils.isEmpty(content)) {
                         CommonAnim.getInstance().animImageView(sendIV)
                     }
-                    isShowSendBtn = !TextUtils.isEmpty(content)
-                    updatePrimaryActionUi(!TextUtils.isEmpty(content))
+                    isShowSendBtn = true
+                    if (TextUtils.isEmpty(content)) {
+                        sendIV.colorFilter = PorterDuffColorFilter(
+                            ContextCompat.getColor(
+                                iConversationContext.chatActivity, R.color.popupTextColor
+                            ), PorterDuff.Mode.MULTIPLY
+                        )
+                    } else {
+                        sendIV.colorFilter = PorterDuffColorFilter(
+                            Theme.colorAccount, PorterDuff.Mode.MULTIPLY
+                        )
+                    }
+                    CommonAnim.getInstance().showOrHide(markdownIv, false, true)
+                    if (flame == 1) {
+                        CommonAnim.getInstance().showOrHide(flameIV, false, true)
+                    }
                 } else {
+                    CommonAnim.getInstance().showOrHide(markdownIv, true, true)
+                    if (flame == 1) {
+                        CommonAnim.getInstance().showOrHide(flameIV, true, true)
+                    }
                     isShowSendBtn = false
-                    updatePrimaryActionUi(false)
+                    sendIV.colorFilter = PorterDuffColorFilter(
+                        ContextCompat.getColor(
+                            iConversationContext.chatActivity, R.color.popupTextColor
+                        ), PorterDuff.Mode.MULTIPLY
+                    )
                 }
-
                 val selectionStart = editText.selectionStart
                 val selectionEnd = editText.selectionEnd
                 if (selectionEnd != selectionStart || selectionStart <= 0) {
@@ -1883,41 +1892,6 @@ class ChatPanelManager(
             iConversationContext.chatActivity,
             R.anim.anim_add_child
         )
-    }
-
-    private fun updatePrimaryActionUi(hasContent: Boolean) {
-        val tintColor = if (hasContent) {
-            Theme.colorAccount
-        } else {
-            ContextCompat.getColor(
-                iConversationContext.chatActivity,
-                R.color.popupTextColor
-            )
-        }
-        sendIV.colorFilter = PorterDuffColorFilter(tintColor, PorterDuff.Mode.MULTIPLY)
-        markdownIv.visibility = View.GONE
-        markdownIv.isEnabled = false
-        if (flame == 1) {
-            CommonAnim.getInstance().showOrHide(flameIV, !hasContent, true)
-        }
-    }
-
-    private fun openVoiceInputFromPrimaryButton(): Boolean {
-        val adapter = toolBarAdapter ?: return false
-        val voiceIndex = adapter.data.indexOfFirst { it.sid == "wk_chat_toolbar_voice" }
-        if (voiceIndex < 0) return false
-        val voiceMenu = adapter.data[voiceIndex]
-        if (voiceMenu.isDisable) return false
-        checkPermission(iConversationContext.chatActivity, voiceMenu, voiceIndex, adapter)
-        return true
-    }
-
-    private fun reorderToolbarMenus(list: MutableList<ChatToolBarMenu>): MutableList<ChatToolBarMenu> {
-        if (list.size <= 1) return list
-        return list.sortedWith(compareBy<ChatToolBarMenu> {
-            val index = primaryToolbarOrder.indexOf(it.sid)
-            if (index >= 0) index else Int.MAX_VALUE
-        }).toMutableList()
     }
 
     //相册有新的图片
