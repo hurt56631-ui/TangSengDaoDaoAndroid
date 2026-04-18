@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -33,6 +34,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatImageView;
+import androidx.appcompat.widget.PopupMenu;
 import androidx.core.content.ContextCompat;
 import androidx.databinding.DataBindingUtil;
 import androidx.recyclerview.widget.DefaultItemAnimator;
@@ -130,6 +132,10 @@ import com.xinbida.wukongim.msgmodel.WKReply;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -190,6 +196,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
     private boolean isShowCallingView = false;
     private boolean isTipMessage = false;
     private int hideChannelAllPinnedMessage = 0;
+    private ImageView settingsIV;
     private PanelSwitchHelper mHelper;
     private ChatPanelManager chatPanelManager;
     private ActChatLayoutBinding wkVBinding;
@@ -407,6 +414,7 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
 
     protected void initView() {
         EndpointManager.getInstance().invoke("set_chat_bg", new SetChatBgMenu(channelId, channelType, wkVBinding.imageView, wkVBinding.rootView, wkVBinding.blurView));
+        applyLocalChatBackground();
         Object pinnedLayoutView = EndpointManager.getInstance().invoke("get_pinned_message_view", this);
         if (pinnedLayoutView instanceof View) {
             wkVBinding.pinnedLayout.addView((View) pinnedLayoutView);
@@ -441,6 +449,13 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         }
         callIV.setColorFilter(new PorterDuffColorFilter(ContextCompat.getColor(this, R.color.popupTextColor), PorterDuff.Mode.MULTIPLY));
         callIV.setBackground(Theme.createSelectorDrawable(Theme.getPressedColor()));
+
+        settingsIV = new AppCompatImageView(this);
+        settingsIV.setImageResource(android.R.drawable.ic_menu_manage);
+        settingsIV.setColorFilter(new PorterDuffColorFilter(ContextCompat.getColor(this, R.color.popupTextColor), PorterDuff.Mode.MULTIPLY));
+        settingsIV.setBackground(Theme.createSelectorDrawable(Theme.getPressedColor()));
+        wkVBinding.topLayout.rightView.addView(settingsIV, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.END, 0, 0, 60, 0));
+        settingsIV.setOnClickListener(this::showChatAppearanceMenu);
 
         CommonAnim.getInstance().showOrHide(numberTextView, false, false);
 
@@ -941,6 +956,73 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
             }
             return null;
         });
+    }
+
+    private String getLocalChatBackgroundKey() {
+        return "local_chat_bg_" + channelType + "_" + channelId;
+    }
+
+    private void showChatAppearanceMenu(View anchor) {
+        PopupMenu popupMenu = new PopupMenu(this, anchor);
+        popupMenu.getMenu().add(0, 1, 0, "上传聊天背景");
+        popupMenu.getMenu().add(0, 2, 1, "清除聊天背景");
+        popupMenu.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == 1) {
+                pickChatBackgroundLauncher.launch("image/*");
+                return true;
+            }
+            if (item.getItemId() == 2) {
+                clearLocalChatBackground();
+                return true;
+            }
+            return false;
+        });
+        popupMenu.show();
+    }
+
+    private void clearLocalChatBackground() {
+        WKSharedPreferencesUtil.getInstance().putSP(getLocalChatBackgroundKey(), "");
+        EndpointManager.getInstance().invoke("set_chat_bg", new SetChatBgMenu(channelId, channelType, wkVBinding.imageView, wkVBinding.rootView, wkVBinding.blurView));
+        WKToastUtils.getInstance().showToastNormal("已恢复默认背景");
+    }
+
+    private void applyLocalChatBackground() {
+        Object value = WKSharedPreferencesUtil.getInstance().getSP(getLocalChatBackgroundKey());
+        if (!(value instanceof String)) {
+            return;
+        }
+        String localPath = (String) value;
+        if (TextUtils.isEmpty(localPath)) {
+            return;
+        }
+        File localFile = new File(localPath);
+        if (!localFile.exists()) {
+            return;
+        }
+        wkVBinding.imageView.setImageURI(Uri.fromFile(localFile));
+        wkVBinding.imageView.setVisibility(View.VISIBLE);
+        wkVBinding.blurView.setVisibility(View.GONE);
+    }
+
+    @Nullable
+    private String persistLocalBackground(@NonNull Uri uri) {
+        File targetFile = new File(getFilesDir(), "chat_bg_" + channelType + "_" + channelId + ".jpg");
+        try (InputStream inputStream = getContentResolver().openInputStream(uri);
+             OutputStream outputStream = new FileOutputStream(targetFile, false)) {
+            if (inputStream == null) {
+                return null;
+            }
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, len);
+            }
+            outputStream.flush();
+            return targetFile.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e("ChatActivity", "persistLocalBackground", e);
+            return null;
+        }
     }
 
     @Override
@@ -2307,6 +2389,20 @@ public class ChatActivity extends SwipeBackActivity implements IConversationCont
         EndpointManager.getInstance().invoke("stop_screen_shot", this);
     }
 
+
+    ActivityResultLauncher<String> pickChatBackgroundLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
+        if (uri == null) {
+            return;
+        }
+        String savedPath = persistLocalBackground(uri);
+        if (TextUtils.isEmpty(savedPath)) {
+            WKToastUtils.getInstance().showToastNormal("背景保存失败");
+            return;
+        }
+        WKSharedPreferencesUtil.getInstance().putSP(getLocalChatBackgroundKey(), savedPath);
+        applyLocalChatBackground();
+        WKToastUtils.getInstance().showToastNormal("聊天背景已更新");
+    });
 
     ActivityResultLauncher<Intent> previewNewImgResultLac = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
         if (result.getData() != null && result.getResultCode() == Activity.RESULT_OK) {
