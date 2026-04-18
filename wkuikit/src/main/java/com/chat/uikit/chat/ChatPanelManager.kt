@@ -183,17 +183,12 @@ class ChatPanelManager(
     private var lastHeight = 0
     private var lastTargetLines = 1 // 追踪上一次的目标行数
     private val maxLines: Int = 3
-    private var isTapRecording: Boolean = false
-    private var simpleEmojiPanel: View? = null
-    private val translateBar: LinearLayout? = parentView.findViewById(R.id.translateBar)
-    private val sourceLangTv: AppCompatTextView? = parentView.findViewById(R.id.sourceLangTv)
-    private val targetLangTv: AppCompatTextView? = parentView.findViewById(R.id.targetLangTv)
-    private val swapLangTv: AppCompatTextView? = parentView.findViewById(R.id.swapLangTv)
-    private val translateToggleTv: AppCompatTextView? = parentView.findViewById(R.id.translateToggleTv)
-    private val simpleLangList = listOf("中文", "English", "မြန်မာစာ", "日本語")
-    private var sendTranslateEnabled = false
-    private var simpleSourceLang = "中文"
-    private var simpleTargetLang = "မြန်မာစာ"
+    private val primaryToolbarOrder = listOf(
+        "emojiToolBar",
+        "wk_chat_toolbar_voice",
+        "wk_chat_toolbar_more",
+        "wk_chat_toolbar_remind"
+    )
 
     init {
         this.menuView.background = Theme.getBackground(Theme.colorAccount, 30f)
@@ -202,17 +197,19 @@ class ChatPanelManager(
         // 设置输入框的初始行数
         editText.setMinLines(1)
         editText.setMaxLines(maxLines)
-        initTool()
         initListener()
         initRemind()
+        initRobotGIF()
+        initRobotMenu()
+        initTool()
         initMultipleChoiceView()
         initBanView()
         initForbiddenView()
         initChatTopView()
+        initFlame()
         initNewImageView()
-        loadSimpleComposerPrefs()
-        bindSimpleComposerBar()
-        applySimpleComposerUi()
+        markdownIv.visibility = View.GONE
+        markdownIv.isEnabled = false
         EndpointManager.getInstance().invoke(
             "initInputPanel",
             InitInputPanelMenu(
@@ -364,11 +361,11 @@ class ChatPanelManager(
     }
 
     private fun isDisableToolBar(isDisable: Boolean) {
-        val adapter = toolBarAdapter ?: return
-        for (index in adapter.data.indices) {
-            adapter.data[index].isDisable = isDisable
+        for (index in toolBarAdapter!!.data.indices) {
+            toolBarAdapter!!.data[index].isDisable = isDisable
         }
-        adapter.notifyItemRangeChanged(0, adapter.itemCount)
+        toolBarAdapter!!.notifyItemRangeChanged(0, toolBarAdapter!!.itemCount)
+
     }
 
     fun getEditText(): ContactEditText {
@@ -748,9 +745,8 @@ class ChatPanelManager(
         if (flame == 1) {
             flameIV.visibility = View.VISIBLE
             CommonAnim.getInstance().showOrHide(flameIV, true, true)
-            markdownIv.visibility = View.GONE
-        } else
-            markdownIv.visibility = View.VISIBLE
+        }
+        markdownIv.visibility = View.GONE
         seekBarView?.setDelegate(object : SeekBarView.SeekBarViewDelegate {
             override fun onSeekBarDrag(stop: Boolean, progress: Float) {
                 if (stop)
@@ -884,204 +880,6 @@ class ChatPanelManager(
     }
 
 
-
-    private fun applySimpleComposerUi() {
-        toolbarRecyclerView.visibility = View.GONE
-        menuView.visibility = View.VISIBLE
-        flameIV.visibility = View.GONE
-        translateBar?.visibility = View.VISIBLE
-        menuLayout.background = Theme.getBackground(
-            ContextCompat.getColor(iConversationContext.chatActivity, R.color.layoutColor),
-            20f
-        )
-        menuIv.setImageResource(android.R.drawable.ic_menu_camera)
-        menuIv.colorFilter = PorterDuffColorFilter(
-            ContextCompat.getColor(iConversationContext.chatActivity, R.color.popupTextColor),
-            PorterDuff.Mode.MULTIPLY
-        )
-        markdownIv.visibility = View.VISIBLE
-        markdownIv.setImageResource(R.mipmap.icon_chat_toolbar_emoji)
-        markdownIv.colorFilter = PorterDuffColorFilter(
-            ContextCompat.getColor(iConversationContext.chatActivity, R.color.popupTextColor),
-            PorterDuff.Mode.MULTIPLY
-        )
-        sendIV.background = Theme.getBackground(
-            ContextCompat.getColor(iConversationContext.chatActivity, R.color.layoutColor),
-            20f
-        )
-        updateSendButtonState(false)
-        refreshSimpleComposerBar()
-    }
-
-    private fun updateSendButtonState(hasText: Boolean) {
-        val backgroundColor = if (hasText || isTapRecording) {
-            Theme.colorAccount
-        } else {
-            ContextCompat.getColor(iConversationContext.chatActivity, R.color.layoutColor)
-        }
-        sendIV.background = Theme.getBackground(backgroundColor, 20f)
-        if (hasText) {
-            sendIV.setImageResource(R.mipmap.icon_chat_send)
-            sendIV.colorFilter = PorterDuffColorFilter(
-                ContextCompat.getColor(iConversationContext.chatActivity, R.color.white),
-                PorterDuff.Mode.MULTIPLY
-            )
-        } else {
-            sendIV.setImageResource(android.R.drawable.ic_btn_speak_now)
-            sendIV.colorFilter = PorterDuffColorFilter(
-                if (isTapRecording) ContextCompat.getColor(iConversationContext.chatActivity, R.color.white)
-                else ContextCompat.getColor(iConversationContext.chatActivity, R.color.popupTextColor),
-                PorterDuff.Mode.MULTIPLY
-            )
-        }
-    }
-
-    private fun loadSimpleComposerPrefs() {
-        val source = WKSharedPreferencesUtil.getInstance().getSP("simple_source_lang")
-        val target = WKSharedPreferencesUtil.getInstance().getSP("simple_target_lang")
-        val translateEnabled = WKSharedPreferencesUtil.getInstance().getSP("simple_send_translate_enabled")
-        if (source is String && source.isNotEmpty()) simpleSourceLang = source
-        if (target is String && target.isNotEmpty()) simpleTargetLang = target
-        if (translateEnabled is Boolean) {
-            sendTranslateEnabled = translateEnabled
-        }
-    }
-
-    private fun saveSimpleComposerPrefs() {
-        WKSharedPreferencesUtil.getInstance().putSP("simple_source_lang", simpleSourceLang)
-        WKSharedPreferencesUtil.getInstance().putSP("simple_target_lang", simpleTargetLang)
-        WKSharedPreferencesUtil.getInstance().putSP("simple_send_translate_enabled", sendTranslateEnabled)
-    }
-
-    private fun bindSimpleComposerBar() {
-        sourceLangTv?.setOnClickListener {
-            simpleSourceLang = nextSimpleLang(simpleSourceLang)
-            if (simpleSourceLang == simpleTargetLang) {
-                simpleTargetLang = nextSimpleLang(simpleTargetLang)
-            }
-            saveSimpleComposerPrefs()
-            refreshSimpleComposerBar()
-        }
-        targetLangTv?.setOnClickListener {
-            simpleTargetLang = nextSimpleLang(simpleTargetLang)
-            if (simpleTargetLang == simpleSourceLang) {
-                simpleSourceLang = nextSimpleLang(simpleSourceLang)
-            }
-            saveSimpleComposerPrefs()
-            refreshSimpleComposerBar()
-        }
-        swapLangTv?.setOnClickListener {
-            val temp = simpleSourceLang
-            simpleSourceLang = simpleTargetLang
-            simpleTargetLang = temp
-            saveSimpleComposerPrefs()
-            refreshSimpleComposerBar()
-        }
-        translateToggleTv?.setOnClickListener {
-            sendTranslateEnabled = !sendTranslateEnabled
-            saveSimpleComposerPrefs()
-            refreshSimpleComposerBar()
-            WKToastUtils.getInstance().showToastNormal(
-                if (sendTranslateEnabled) "发送翻译已开启" else "发送翻译已关闭"
-            )
-        }
-    }
-
-    private fun nextSimpleLang(current: String): String {
-        val index = simpleLangList.indexOf(current)
-        return if (index == -1 || index == simpleLangList.lastIndex) simpleLangList.first() else simpleLangList[index + 1]
-    }
-
-    private fun refreshSimpleComposerBar() {
-        sourceLangTv?.text = simpleSourceLang
-        targetLangTv?.text = simpleTargetLang
-        translateToggleTv?.alpha = if (sendTranslateEnabled) 1f else 0.65f
-        translateToggleTv?.setTextColor(
-            if (sendTranslateEnabled) Theme.colorAccount
-            else ContextCompat.getColor(iConversationContext.chatActivity, R.color.color999)
-        )
-    }
-
-    private fun toggleSimpleEmojiPanel() {
-        if (simpleEmojiPanel == null) {
-            simpleEmojiPanel = getEmojiLayout()
-        }
-        if (helper.isPanelState() && moreLayout.childCount > 0 && moreLayout.getChildAt(0) === simpleEmojiPanel) {
-            helper.resetState()
-            SoftKeyboardUtils.getInstance().requestFocus(editText)
-            return
-        }
-        moreLayout.removeAllViews()
-        moreLayout.addView(
-            simpleEmojiPanel,
-            LayoutHelper.createFrame(
-                LayoutHelper.MATCH_PARENT,
-                LayoutHelper.MATCH_PARENT.toFloat()
-            )
-        )
-        SoftKeyboardUtils.getInstance().loseFocus(editText)
-        SoftKeyboardUtils.getInstance().hideInput(iConversationContext.chatActivity, editText)
-        helper.toPanelState(R.id.emotionView)
-    }
-
-    private fun startTapRecord() {
-        val activity = iConversationContext.chatActivity
-        val desc = String.format(
-            activity.getString(R.string.microphone_permissions_des),
-            activity.getString(R.string.app_name)
-        )
-        WKPermissions.getInstance().checkPermissions(object : WKPermissions.IPermissionResult {
-            override fun onResult(result: Boolean) {
-                if (!result) return
-                isTapRecording = true
-                sendIV.setImageResource(android.R.drawable.ic_media_pause)
-                sendIV.background = Theme.getBackground(Theme.colorAccount, 20f)
-                sendIV.colorFilter = PorterDuffColorFilter(
-                    ContextCompat.getColor(iConversationContext.chatActivity, R.color.white),
-                    PorterDuff.Mode.MULTIPLY
-                )
-                sendIV.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                EndpointManager.getInstance().invoke("simple_click_record_start", iConversationContext)
-                WKToastUtils.getInstance().showToastNormal("再次点击结束录音")
-            }
-
-            override fun clickResult(isCancel: Boolean) {
-            }
-        }, activity, desc, Manifest.permission.RECORD_AUDIO)
-    }
-
-    private fun stopTapRecord(send: Boolean) {
-        isTapRecording = false
-        updateSendButtonState(false)
-        if (send) {
-            EndpointManager.getInstance().invoke("simple_click_record_stop_and_send", iConversationContext)
-        } else {
-            EndpointManager.getInstance().invoke("simple_click_record_cancel", iConversationContext)
-        }
-    }
-
-    private fun openSimpleMediaActions() {
-        val adapter = toolBarAdapter ?: run {
-            WKToastUtils.getInstance().showToastNormal("未找到图片/视频入口")
-            return
-        }
-        val priority = listOf(
-            "wk_chat_toolbar_more",
-            "chat_toolbar_more",
-            "wk_chat_toolbar_album",
-            "wk_chat_toolbar_media",
-            "wk_chat_toolbar_camera"
-        )
-        for ((index, item) in adapter.data.withIndex()) {
-            val sid = item.sid ?: ""
-            if (sid in priority || sid.contains("more") || sid.contains("image") || sid.contains("media") || sid.contains("album") || sid.contains("camera") || sid.contains("photo") || sid.contains("video")) {
-                toolBarClick(item, index, adapter)
-                return
-            }
-        }
-        WKToastUtils.getInstance().showToastNormal("未找到图片/视频入口")
-    }
-
     private fun initTool() {
         toolBarAdapter = WKChatToolBarAdapter()
         toolBarAdapter?.animationEnable = false
@@ -1116,7 +914,7 @@ class ChatPanelManager(
             ) { _, _ -> }
             tempToolBarList.add(0, emojiToolBar)
         }
-        toolBarAdapter?.setList(tempToolBarList)
+        toolBarAdapter?.setList(reorderToolbarMenus(tempToolBarList))
         toolBarAdapter?.addChildClickViewIds(R.id.imageView)
         toolBarAdapter?.setOnItemChildClickListener { adapter1: BaseQuickAdapter<*, *>, view: View, position: Int ->
             if (view.id == R.id.imageView) {
@@ -1483,32 +1281,16 @@ class ChatPanelManager(
             }
             null
         }
-        SingleClickUtil.onSingleClick(menuLayout) {
-            if (isTapRecording) {
-                stopTapRecord(false)
-            }
-            openSimpleMediaActions()
-        }
         SingleClickUtil.onSingleClick(markdownIv) {
-            if (isTapRecording) {
-                stopTapRecord(false)
-            }
-            toggleSimpleEmojiPanel()
+            // 已按需求隐藏富文本入口，保留空实现避免影响现有布局引用
         }
         sendIV.setOnClickListener {
-            val plainText = StringUtils.replaceBlank(editText.text.toString())
-            if (TextUtils.isEmpty(plainText)) {
-                if (isTapRecording) {
-                    stopTapRecord(true)
-                } else {
-                    startTapRecord()
+            var content = StringUtils.replaceBlank(editText.text.toString())
+            if (TextUtils.isEmpty(content)) {
+                if (openVoiceInputFromPrimaryButton()) {
+                    return@setOnClickListener
                 }
-                return@setOnClickListener
             }
-            if (isTapRecording) {
-                stopTapRecord(false)
-            }
-            var content = plainText
             if (!TextUtils.isEmpty(content)) {
                 content = editText.text.toString()
                 sendIV.colorFilter = PorterDuffColorFilter(
@@ -1577,15 +1359,17 @@ class ChatPanelManager(
                 this.count = count
                 if (!TextUtils.isEmpty(s.toString())) {
                     val content = StringUtils.replaceBlank(s.toString())
+//                    val content = s.toString().replace("\s*|\r|\n|\t", "")
                     if (!isShowSendBtn && !TextUtils.isEmpty(content)) {
                         CommonAnim.getInstance().animImageView(sendIV)
                     }
                     isShowSendBtn = !TextUtils.isEmpty(content)
-                    updateSendButtonState(isShowSendBtn)
+                    updatePrimaryActionUi(!TextUtils.isEmpty(content))
                 } else {
                     isShowSendBtn = false
-                    updateSendButtonState(false)
+                    updatePrimaryActionUi(false)
                 }
+
                 val selectionStart = editText.selectionStart
                 val selectionEnd = editText.selectionEnd
                 if (selectionEnd != selectionStart || selectionStart <= 0) {
@@ -1969,12 +1753,12 @@ class ChatPanelManager(
 
 
     fun resetToolBar() {
-        val adapter = toolBarAdapter ?: return
-        for (index in adapter.data.indices) {
-            adapter.getItem(index).isDisable = false
-            adapter.getItem(index).isSelected = false
+        for (index in toolBarAdapter!!.data.indices) {
+            toolBarAdapter!!.getItem(index).isDisable =
+                false
+            toolBarAdapter!!.getItem(index).isSelected = false
         }
-        adapter.notifyItemRangeChanged(0, adapter.itemCount)
+        toolBarAdapter!!.notifyItemRangeChanged(0, toolBarAdapter!!.itemCount)
     }
 
     private fun getEmojiLayout(): View {
@@ -2099,6 +1883,41 @@ class ChatPanelManager(
             iConversationContext.chatActivity,
             R.anim.anim_add_child
         )
+    }
+
+    private fun updatePrimaryActionUi(hasContent: Boolean) {
+        val tintColor = if (hasContent) {
+            Theme.colorAccount
+        } else {
+            ContextCompat.getColor(
+                iConversationContext.chatActivity,
+                R.color.popupTextColor
+            )
+        }
+        sendIV.colorFilter = PorterDuffColorFilter(tintColor, PorterDuff.Mode.MULTIPLY)
+        markdownIv.visibility = View.GONE
+        markdownIv.isEnabled = false
+        if (flame == 1) {
+            CommonAnim.getInstance().showOrHide(flameIV, !hasContent, true)
+        }
+    }
+
+    private fun openVoiceInputFromPrimaryButton(): Boolean {
+        val adapter = toolBarAdapter ?: return false
+        val voiceIndex = adapter.data.indexOfFirst { it.sid == "wk_chat_toolbar_voice" }
+        if (voiceIndex < 0) return false
+        val voiceMenu = adapter.data[voiceIndex]
+        if (voiceMenu.isDisable) return false
+        checkPermission(iConversationContext.chatActivity, voiceMenu, voiceIndex, adapter)
+        return true
+    }
+
+    private fun reorderToolbarMenus(list: MutableList<ChatToolBarMenu>): MutableList<ChatToolBarMenu> {
+        if (list.size <= 1) return list
+        return list.sortedWith(compareBy<ChatToolBarMenu> {
+            val index = primaryToolbarOrder.indexOf(it.sid)
+            if (index >= 0) index else Int.MAX_VALUE
+        }).toMutableList()
     }
 
     //相册有新的图片
